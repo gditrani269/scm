@@ -9,4 +9,6 @@ el user dditrani hizo un fork de: https://github.com/dditrani/scm
 ---- linea intermedia ------------ // modifico la linea intermedia.
 Es el primer file del fork de la cuenta dditrani.
 
-Se agrega linea al final
+Es el primer file del fork de la cuenta dditrani, pero ya tiene cambios.
+Se realizo un cambio en la linea del fork y se agrega este cambio para ver como actua el merge ante cambios en las dos ramas (la ppapl y la del fork)
+
