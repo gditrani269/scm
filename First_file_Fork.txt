@@ -1,2 +1,3 @@
 el user dditrani hizo un fork de: https://github.com/dditrani/scm
+---- linea intermedia ------------
 Es el primer file del fork de la cuenta dditrani.
