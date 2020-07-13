@@ -71,7 +71,7 @@ objects:
               - name: https_proxy
                 value: 
               - name: URL_ORQUESTADOR_DIAGNOSTICO
-                value: https://ms-orquestador-diagnostico-pdd-portaldiagnostico-dev.apps-rp.cloudteco.com.ar
+                value: https://ms-orquestador-diagnostico-branch-pdd-portaldiagnostico-dev.apps-rp.cloudteco.com.ar
             image: ${PARAM_IMAGE_NAME}:latest
             ports:
               - containerPort: 8080
@@ -179,7 +179,7 @@ parameters:
   value: ssh://git@bitbucket.personal.corp:7999/pddu/front-pddu.git
 - name: GIT_BRANCH
   required: true
-  value: master
+  value: dev
 - name: ENVIRONMENT
   required: true
   value: DEV
