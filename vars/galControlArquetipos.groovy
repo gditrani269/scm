@@ -1,58 +1,83 @@
 import groovy.json.JsonSlurper
 
-pipeline {
-    agent any
-    stages {
-        stage("Preparo el ambiente") {
-            steps {
-                script {
-                    print("Configuro la libreria")
-                    library identifier: 'local-arquetipo@master', retriever: modernSCM([$class: 'GitSCMSource', credentialsId: '', remote: '/Users/juancho/Desktop/Repositorios/arquetipo/.git/', traits: [gitBranchDiscovery()]])
+def call (String TECNOLOGIA, String AMBIENTE, String CONFIGURACION_MOCK) {
+    def comandoFind = mensajeErrorNotFound = mensajeErrorTotalArchivos = responseData = url = ""
+    def HttpURLConnection connection
+    def endpointArquitectura = "http://localhost:3000/api/arquetipos/validararquetipo"
+    
+    println("Validacion de ambiente")
 
-                    println("Creo archivos pom.xml y netcore.csproj")
-                    sh('cp -r /Users/juancho/Desktop/Repositorios/archivos_arquetipos/* .')
-                    sh("ls -lR")
-                }
-            }
-        }
-        stage("Configuro prueba") {
-            steps {
-                script {
-                    def userInput = input(message: 'Seleccionar parametros', ok: 'Confirmar', parameters: [choice(choices: ['netcore', 'java', 'nodejs', 'python', 'pato'], description: '', name: 'TECNOLOGIA'), choice(choices: ['dev', 'int', 'No anda'], description: '', name: 'AMBIENTE')])
-
-                    env.TECNOLOGIA = userInput['TECNOLOGIA']
-                    env.AMBIENTE = userInput['AMBIENTE']
-                    // env.CONFIGURACION_MOCK = "Ok."
-                    // env.CONFIGURACION_MOCK = "Error."
-                    env.CONFIGURACION_MOCK = "Warning."
-
-                    println("TECNOLOGIA: ${TECNOLOGIA}")
-                    println("AMBIENTE: ${AMBIENTE}")
-                }
-            }
-        }
-        stage("Test Arquetipo") {
-            steps {
-                script {    
-                    galControlArquetipos("${env.TECNOLOGIA}", "${env.AMBIENTE}", "${env.CONFIGURACION_MOCK}")
-                }
-            }
-        }
-        stage("Compile") {
-            steps {
-                println("Compilacion terminada")
-            }
-        }
+    if ("${AMBIENTE}" != "dev" && "${AMBIENTE}" != "int") {
+        println("No hay analisis de arquetipo definido para el ambiente ${AMBIENTE}. Aplica solo para dev e int.")
+        return true
     }
-    post {
-        always {
-            println("Ejecucion finalizada")
-        }
-        failure {
-            println("Error en la ejecucion")
-        }
-        success {
-            println("Exito en la ejecucion")
-        }
-    }    
+
+    println("Validacion de tecnologia")
+
+    switch("${TECNOLOGIA}") {
+        case "java":
+            mensajeErrorNotFound = "No se encontro archivo POM.xml"
+            mensajeErrorTotalArchivos = "Hay más de un archivo POM.xml en el proyecto"
+            comandoFind = sh(returnStdout: true, script: 'find . -iname "pom.xml" -type f ! -path "*test*"')
+        break
+        case "netcore":
+            mensajeErrorNotFound = "No se encontro archivo csproj"
+            mensajeErrorTotalArchivos = "Hay más de un archivo csproj en el proyecto"
+            comandoFind = sh(returnStdout: true, script: 'find . -iname "*.csproj" -type f ! -path "*test*"')
+        break
+        default:
+            println("No hay analisis de arquetipo definido para la tecnologia ${TECNOLOGIA}. Aplica solo para java y netcore.")
+            return true
+    }
+    
+    if (comandoFind == '' || comandoFind.length() < 1) {
+        println(mensajeErrorNotFound)
+        error(mensajeErrorNotFound)
+    }
+
+    def listadoArchivos = comandoFind.tokenize()
+    
+    if (listadoArchivos.size() > 1) {
+        println(mensajeErrorTotalArchivos)
+        error(mensajeErrorTotalArchivos)
+    }
+
+    File file = new File("${env.WORKSPACE}/${listadoArchivos[0]}")
+    String fileContent = file.text
+    
+    try {
+        println("Ambiente: ${AMBIENTE}")
+        println("Tecnologia: ${TECNOLOGIA}")
+        println("Archivo a controlar: ${listadoArchivos[0]}")
+
+        url = new URL("${endpointArquitectura}" + "?tecnologia=${TECNOLOGIA}&ambiente=${AMBIENTE}&configuracion=${CONFIGURACION_MOCK}")
+        connection = url.openConnection()
+        connection.requestMethod = "POST"
+        connection.setDoOutput(true)
+        connection.setRequestProperty("Content-Type", "application/xml")
+        connection.getOutputStream().write(fileContent.getBytes("UTF-8"))
+    } catch (ConnectException) {
+        error("Error de conexion Api Arquitectura - No se pudo establecer la conexion con el servicio ${endpointArquitectura}. Codigo: 500")
+    } finally {
+        connection.disconnect()
+    }
+
+    switch(connection.getResponseCode()) {
+        case 200:
+            responseData = connection.getInputStream().getText()
+            break
+        default:
+            responseData = connection.getErrorStream().getText()
+            break
+    }
+
+    def Map responseData = new JsonSlurper().parseText("${responseData}")
+    def statusApi = responseData.data.status
+    def mensajeAPI = "Respuesta API: ${responseData.data}"
+
+    println(mensajeAPI)
+
+    if (responseData.data.status == "Error.") {        
+        error(mensajeAPI)
+    }
 }
